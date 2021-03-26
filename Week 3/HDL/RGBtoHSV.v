@@ -2,18 +2,23 @@ module RGBtoHSV#(
   parameter N = 32
   )
   (
-    output [N-1:0] H,
-    output [N-1:0] S,
-    output [N-1:0] V,
-    input [7:0] R,
-    input [7:0] G,
-    input [7:0] B,
+    output reg [N-1:0] o_H,
+    output reg [N-1:0] o_S,
+    output reg [N-1:0] o_V,
+    output reg val_out,
+    input [7:0] i_R,
+    input [7:0] i_G,
+    input [7:0] i_B,
+    input val_in,
     input clk,
     input i_clk,
     input i_start,
     input rst_n
     );
   
+  reg [7:0] R,G,B;
+  
+  wire [N-1:0] H,S,V;
   wire [N-1:0] Rf,Gf,Bf;  // fixed point, stage 0 
   wire [N-1:0] cmax,cmin;  
   wire [N-1:0] a,b,c,delta;
@@ -25,8 +30,26 @@ module RGBtoHSV#(
   wire sign_delta_2;
   wire [N-1:0] result_adder, result_mult, over, over_H;
   
+  //assign val_out = val_o;
+    
+  always @(val_in or H)
+	begin
+		if(val_in == 1)
+			begin
+				R = i_R;
+				G = i_G;
+				B = i_B;
+				val_out = 0;
+			end
+		else
+			begin
+				o_H = H;
+				o_S = S;
+				o_V = V;
+				val_out = 1;
+			end
+	end
   
-  assign b[31] = 1; // subtractor result_sub = a-b
   
   extend8to32 inst_fixedpoint[2:0](
     .Out({Rf,Gf,Bf}),
