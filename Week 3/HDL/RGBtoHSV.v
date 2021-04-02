@@ -25,10 +25,10 @@ module RGBtoHSV#(
   wire sign_delta;
   wire [N-1:0] a_1,b_1,c_1,cmax_1,delta_1; // stage 1
   wire sign_delta_1;
-  wire [N-1:0] result_sub, result_div0, result_div1, result_div2;    
+  wire [N-1:0] result_sub, result_div0, result_div1;    
   wire [N-1:0] cmax_2,c_2,result_div0_2,result_div1_2; // stage 2
   wire sign_delta_2;
-  wire [N-1:0] result_adder, result_mult0, result_mult1, result_mult2, over, over_H;
+  wire [N-1:0] result_adder, result_mult0, result_mult1, over, over_H;
   
   //assign val_out = val_o;
     
@@ -130,21 +130,10 @@ module RGBtoHSV#(
 		.o_complete(), 
 		.o_overflow()
 	);
-	
-	div inst_div2 (
-		.i_dividend(cmax_1),
-		.i_divisor({17'd255,15'd0}), 
-		.i_start(i_start), 
-		.i_clk(i_clk), 
-		.o_quotient_out(result_div2), 
-		.o_complete(), 
-		.o_overflow()
-	);
-  
   
   register32 inst_register32bits_2[3:0](  //stage 2
     .Q({cmax_2,c_2,result_div0_2,result_div1_2}),
-    .D({result_div2,c_1,result_div0,result_div1}),
+    .D({cmax_1,c_1,result_div0,result_div1}),
     .clk(clk),
     .rst_n(rst_n)
     );
@@ -163,7 +152,7 @@ module RGBtoHSV#(
     
   mult inst_multiplier0 (
 		.i_multiplicand(result_adder), 
-		.i_multiplier({17'd60,15'b0}), // result_mult = 60* result_adder
+		.i_multiplier({17'd30,15'b0}), // result_mult = 60* result_adder
 		.i_start(i_start), 
 		.i_clk(i_clk), 
 		.o_result_out(result_mult0), 
@@ -173,7 +162,7 @@ module RGBtoHSV#(
 	
 	mult inst_multiplier1 (
 		.i_multiplicand(result_div1_2), 
-		.i_multiplier({17'd100,15'b0}),
+		.i_multiplier({17'd255,15'b0}),
 		.i_start(i_start), 
 		.i_clk(i_clk), 
 		.o_result_out(result_mult1), 
@@ -181,27 +170,17 @@ module RGBtoHSV#(
 		.o_overflow()
 	);
   
-  mult inst_multiplier2 (
-		.i_multiplicand(cmax_2), 
-		.i_multiplier({17'd100,15'b0}),
-		.i_start(i_start), 
-		.i_clk(i_clk), 
-		.o_result_out(result_mult2), 
-		.o_complete(), 
-		.o_overflow()
-	);
-  
-  assign over_H = ( result_mult0 > {1'b0,16'd360,15'd0} )? over : result_mult0 ;
+  assign over_H = ( result_mult0 >= {1'b0,16'd180,15'd0} )? over : result_mult0 ;
   
   adder #(15,32) inst_subtactor2(
     .a(result_mult0),
-    .b({1'b1,16'd360,15'b0}),
+    .b({1'b1,16'd180,15'b0}),
     .c(over)
     );
   
   assign H = (sign_delta_2)? 32'd0 : over_H;
   assign S = (cmax_2 == 32'd0)? 32'd0 : result_mult1;
-  assign V = result_mult2;
+  assign V = cmax_2;
   
 
   
