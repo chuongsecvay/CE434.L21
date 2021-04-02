@@ -17,14 +17,14 @@ module cmax #(
   
   comparator cmp0(GT0,LT0,EQ0,R,G);
   comparator cmp1(GT1,LT1,EQ1,tmp0,B);
-  mux21 mux0(tmp0,R,G,S0);
-  mux21 mux1(cmax,tmp0,B,S1);
-  or (S0,GT0,LT0);
-  or (S1,GT1,LT1);
+  mux21 mux0(tmp0,G,R,S0);
+  mux21 mux1(cmax,B,tmp0,S1);
+  or (S0,GT0,EQ0);
+  or (S1,GT1,EQ1);
   
   assign signR = (GT0 && GT1) || (EQ0 && GT1) || (GT0 && EQ1) || (EQ0 && EQ1),
   signG = (LT0 && GT1) || (EQ0 && GT1) || (LT0 && EQ1) || (EQ0 && EQ1),
-  signB = (LT0 && LT1) || (GT0 && EQ1) || (LT0 && EQ1) || (EQ0 && EQ1);
+  signB = (LT0 && LT1) || (GT0 && LT1) || (GT0 && EQ1) || (LT0 && EQ1) || (EQ0 && EQ1) || (EQ0 && LT1);
   
   
 endmodule
