@@ -5,11 +5,11 @@ module RGBtoHSV#(
     output reg [N-1:0] o_H,
     output reg [N-1:0] o_S,
     output reg [N-1:0] o_V,
-    output reg val_out,
+	  output val_out,
     input [7:0] i_R,
     input [7:0] i_G,
     input [7:0] i_B,
-    input val_in,
+	  input val_in,
     input clk,
     input i_clk,
     input i_start,
@@ -25,29 +25,28 @@ module RGBtoHSV#(
   wire sign_delta;
   wire [N-1:0] a_1,b_1,c_1,cmax_1,delta_1; // stage 1
   wire sign_delta_1;
-  wire [N-1:0] result_sub, result_div0, result_div1;    
+  wire [N-1:0] result_sub, result_div0, result_div1, result_div2;    
   wire [N-1:0] cmax_2,c_2,result_div0_2,result_div1_2; // stage 2
   wire sign_delta_2;
-  wire [N-1:0] result_adder, result_mult, over, over_H;
+  wire [N-1:0] result_adder, result_mult0, result_mult1, result_mult2, over, over_H;
   
   //assign val_out = val_o;
     
-  always @(val_in or H)
+  always @(val_in or val_out)
 	begin
 		if(val_in == 1)
 			begin
 				R = i_R;
 				G = i_G;
 				B = i_B;
-				val_out = 0;
 			end
 		else
-			begin
-				o_H = H;
-				o_S = S;
-				o_V = V;
-				val_out = 1;
-			end
+		  if(val_out == 1)
+			 begin
+				  o_H = H;
+				  o_S = S;
+				  o_V = V;
+			 end
 	end
   
   
@@ -95,7 +94,7 @@ module RGBtoHSV#(
   
   register32 inst_register32bits_1[4:0](  //stage 1
     .Q({a_1,b_1,c_1,cmax_1,delta_1}),
-    .D({a,b,c,cmax,delta}),
+    .D({a,b,c,cmax,{1'b0,delta[30:0]}}),
     .clk(clk),
     .rst_n(rst_n)
     );
@@ -114,7 +113,7 @@ module RGBtoHSV#(
   
   div inst_div0 (
 		.i_dividend(result_sub), 
-		.i_divisor(Delta), 
+		.i_divisor(delta_1), 
 		.i_start(i_start), 
 		.i_clk(i_clk), 
 		.o_quotient_out(result_div0), 
@@ -123,18 +122,29 @@ module RGBtoHSV#(
 	);
 	
   div inst_div1 (
-		.i_dividend(Delta), 
-		.i_divisor(Cmax), 
+		.i_dividend(delta_1), 
+		.i_divisor(cmax_1), 
 		.i_start(i_start), 
 		.i_clk(i_clk), 
 		.o_quotient_out(result_div1), 
 		.o_complete(), 
 		.o_overflow()
 	);
+	
+	div inst_div2 (
+		.i_dividend(cmax_1),
+		.i_divisor({17'd255,15'd0}), 
+		.i_start(i_start), 
+		.i_clk(i_clk), 
+		.o_quotient_out(result_div2), 
+		.o_complete(), 
+		.o_overflow()
+	);
+  
   
   register32 inst_register32bits_2[3:0](  //stage 2
     .Q({cmax_2,c_2,result_div0_2,result_div1_2}),
-    .D({cmax_2,c_1,result_div0,result_div1}),
+    .D({result_div2,c_1,result_div0,result_div1}),
     .clk(clk),
     .rst_n(rst_n)
     );
@@ -151,28 +161,49 @@ module RGBtoHSV#(
     .c(result_adder)
     );
     
-  mult inst_multiplier (
+  mult inst_multiplier0 (
 		.i_multiplicand(result_adder), 
 		.i_multiplier({17'd60,15'b0}), // result_mult = 60* result_adder
 		.i_start(i_start), 
 		.i_clk(i_clk), 
-		.o_result_out(result_mult), 
+		.o_result_out(result_mult0), 
+		.o_complete(val_out), 
+		.o_overflow()
+	);
+	
+	mult inst_multiplier1 (
+		.i_multiplicand(result_div1_2), 
+		.i_multiplier({17'd100,15'b0}),
+		.i_start(i_start), 
+		.i_clk(i_clk), 
+		.o_result_out(result_mult1), 
 		.o_complete(), 
 		.o_overflow()
 	);
   
-  assign over_H = ( result_mult > 360 )? over : result_mult ;
+  mult inst_multiplier2 (
+		.i_multiplicand(cmax_2), 
+		.i_multiplier({17'd100,15'b0}),
+		.i_start(i_start), 
+		.i_clk(i_clk), 
+		.o_result_out(result_mult2), 
+		.o_complete(), 
+		.o_overflow()
+	);
+  
+  assign over_H = ( result_mult0 > {1'b0,16'd360,15'd0} )? over : result_mult0 ;
   
   adder #(15,32) inst_subtactor2(
-    .a(result_mult),
+    .a(result_mult0),
     .b({1'b1,16'd360,15'b0}),
     .c(over)
     );
   
   assign H = (sign_delta_2)? 32'd0 : over_H;
-  assign S = (cmax_2 == 32'd0)? 32'd0 : result_div1_2;
-  assign V = cmax_2;
+  assign S = (cmax_2 == 32'd0)? 32'd0 : result_mult1;
+  assign V = result_mult2;
   
 
   
 endmodule
+
